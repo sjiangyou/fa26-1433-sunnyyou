@@ -1,6 +1,6 @@
 # Research project title
 
-Replace this text with a one-sentence description of the research question.
+What is the impact of strengthening hurricanes on home and flood insurance prices in hurricane and flood prone areas?
 
 ## Reproducing the project
 
