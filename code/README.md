@@ -19,8 +19,14 @@ The current setup scripts are:
 - `derive_neighbor_panel.R`: creates the South Florida county nearest-neighbor
   crosswalk.
 - `derive_analysis_panel.R`: merges all derived inputs into `analysis_panel.csv`.
+- `estimate_model.R`: aggregates the analysis panel to annual Florida county
+  observations and estimates the annual direct- and neighbor-flood event study
+  with separate pre- and post-Risk-Rating-2.0 flood cohorts.
 - `setup_r_environment.R`: creates or restores the project-local `renv`
-  environment with `here` and `ggplot2`.
+  environment with the packages required by the data and model scripts.
 
-Use the repository `Makefile` instead of invoking these scripts manually when
-reproducing the project.
+Use `make estimate-model` to run the model stage after the derived panels
+exist. The model writes its annual regression panel and coefficient tables to
+`data/derived/model/`. This stage is also included in `make all`, which runs
+the complete currently implemented workflow. Use the repository `Makefile`
+instead of invoking these scripts manually when reproducing the project.

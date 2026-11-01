@@ -40,21 +40,36 @@ the categorized scripts described below.
 
 ### Estimating design
 
-The intended event-study specification includes direct floods, nearby floods,
-and the post-Risk-Rating-2.0 regime:
+The planned county-month event-study specification uses annual leads and lags
+and separates floods occurring before and after the Risk Rating 2.0 transition.
+It includes direct floods, nearby floods, and their interactions with the
+flood's policy regime:
 
 \[
-Y_{ct} = \sum_k \beta_k Flood_{c,t+k}
-+ \sum_k \gamma_k NeighborFlood_{c,t+k}
-+ \sum_k \beta_k^{Post}(Flood_{c,t+k} \times Post_t)
-+ \sum_k \gamma_k^{Post}(NeighborFlood_{c,t+k} \times Post_t)
+Y_{ct} = \sum_k \beta_k EventTime_{ckt}
++ \sum_k \gamma_k NeighborEventTime_{ckt}
++ \sum_k \theta_k(EventTime_{ckt} \times PostFloodCohort_c)
++ \sum_k \delta_k(NeighborEventTime_{ckt} \times PostFloodCohort_c)
 + \alpha_c + \lambda_t + \varepsilon_{ct}.
 \]
 
+Here, \(k\) indexes years relative to the flood, with event time \(-1\)
+omitted. `PostFloodCohort` indicates that the flood occurred after the Risk
+Rating 2.0 transition. The primary event window is expected to be relatively
+short (for example, three years before through three years after the flood) to
+limit contamination from the pricing transition and overlapping flood effects.
 The pre-period is 2015–2021 and the post-period begins in 2022. Because Risk
 Rating 2.0 was phased in beginning in late 2021, 2021 is treated as a transition
-year in robustness checks. County fixed effects absorb time-invariant county
-characteristics, while calendar-time fixed effects absorb common shocks.
+year in robustness checks.
+
+The currently implemented estimator collapses the county-month analysis panel
+to a balanced county-year panel. Its fixed effects are county fixed effects
+(`county_fips`) and calendar-year fixed effects (`year`), implemented in
+`code/estimate_model.R` as `county_fips + year`. County fixed effects absorb
+time-invariant county characteristics, while calendar-year fixed effects absorb
+common annual shocks. The county-month/calendar-month-year version above
+remains the planned higher-frequency specification rather than the estimator
+currently run by `make all`.
 
 The primary outcome is NFIP take-up measured from policy transactions. Since the
 public NFIP policy file does not contain a persistent household policy identifier
@@ -81,6 +96,60 @@ the Risk Rating 2.0 price change because policy composition may change over
 time. The main identification strategy therefore emphasizes the pre/post-2022
 comparison rather than interpreting the aggregate premium change as an
 individual household treatment.
+
+### Causal-identification assumptions
+
+The event-study estimates extend Gallagher's design, so their causal
+interpretation depends on the following assumptions. These assumptions are not
+all fully testable; the listed diagnostics are intended to assess their
+plausibility.
+
+1. **Parallel pre-trends.** In the absence of a flood, counties exposed to
+   floods at different times would have followed comparable NFIP take-up trends
+   after accounting for county and calendar-time fixed effects. This can be
+   assessed using the pre-flood event-time coefficients.
+2. **Conditionally exogenous flood timing.** Conditional on the fixed effects
+   and included controls, flood timing is not driven by an unobserved,
+   county-specific shock that independently changes NFIP take-up.
+3. **No differential concurrent shocks.** Other events, including hurricanes,
+   disaster assistance, migration, housing-market changes, NFIP rule changes,
+   and private-insurance-market changes, do not differentially coincide with
+   flood exposure unless they are controlled for or are part of the intended
+   flood response.
+4. **Accurate flood measurement and timing.** FEMA declarations and claims
+   identify the relevant flood events and their timing with sufficient accuracy.
+   Robustness checks should compare declaration-based and claim-based measures.
+5. **Limited anticipation.** Households do not substantially change insurance
+   decisions before the specific flood being studied. Large pre-flood
+   coefficients would challenge this assumption.
+6. **No problematic composition changes.** Floods do not alter county
+   population, housing, or policy composition in a way that mechanically drives
+   measured take-up, unless that composition change is itself the intended
+   outcome. ACS population and housing controls can help assess this concern.
+7. **Stable outcome measurement.** Changes in NFIP reporting, policy-file
+   coverage, missingness, or county coding do not coincide with floods or Risk
+   Rating 2.0 in a way that mechanically changes the outcome.
+8. **Appropriate treatment of repeated floods.** The model accounts for the
+   possibility that a county experiences multiple floods before an earlier
+   response has dissipated. Short event windows, recent-flood measures, and
+   multiple-event sensitivity analyses should be considered.
+9. **Explicit spillover interpretation.** Because nearby floods are included,
+   the direct-flood coefficient is interpreted conditional on modeled neighbor
+   exposure, while the neighbor coefficient represents a spillover effect.
+   Alternative neighbor definitions should be used as robustness checks.
+10. **Risk Rating 2.0 comparison validity.** Changes in the flood-response
+    relationship after 2022 are not caused by other contemporaneous changes
+    that differentially affected flood-exposed counties. This is stronger than
+    Gallagher's original assumption and cannot be established by fixed effects
+    alone.
+11. **Sufficient treatment support.** There are enough flood events before and
+    after the transition to estimate the relevant event-time effects. Long
+    post-2022 lags will be weakly identified because the post-period is short.
+
+The pre-2022 event study is the closest replication of Gallagher's design. The
+post-2022 interaction should be interpreted more cautiously: it estimates a
+change in the flood-response relationship under the identifying assumptions,
+not necessarily the isolated causal effect of Risk Rating 2.0 pricing.
 
 ### Categorized workflow
 

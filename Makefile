@@ -1,25 +1,26 @@
 # Reproducible entry points for the fa26-1433-sunnyyou research project.
 #
-# The current repository contains raw-data acquisition code. The derive,
-# analyze, plots, and paper stages will be added when their scripts exist.
+# The complete implemented workflow includes raw-data acquisition, derived
+# panels, and annual event-study estimation.
 
 PYTHON ?= .venv/bin/python
 Rscript ?= Rscript
 
-.PHONY: all help setup-python setup-r download-fema download-acs download-geography download-raw derive-policy derive-flood derive-neighbors derive-analysis derive
+.PHONY: all help setup-python download-fema download-acs download-geography download-raw derive-policy derive-flood derive-neighbors derive-analysis derive estimate-model
 
-all: setup-python setup-r download-raw derive
+all: setup-python setup-r download-raw derive estimate-model
 
 help:
 	@printf '%s\n' \
-		'make all          Set up environments, download raw data, and derive panels' \
+		'make all          Run the complete workflow through model estimation' \
 		'make setup-python Prepare the Python environment' \
 		'make setup-r      Create/restore the R renv environment' \
 		'make download-fema Download FEMA declarations, claims, and policies' \
 		'make download-acs Download ACS county controls' \
 		'make download-geography Download Census county geography' \
 		'make download-raw Download all configured raw data' \
-		'make derive       Create all derived analysis panels'
+		'make derive       Create all derived analysis panels' \
+		'make estimate-model Estimate the annual flood event-study models'
 
 setup-python:
 	@if [ ! -x "$(PYTHON)" ]; then \
@@ -62,3 +63,6 @@ derive-analysis: derive-policy derive-flood derive-neighbors download-acs
 	@$(Rscript) code/derive_analysis_panel.R
 
 derive: derive-analysis
+
+estimate-model: derive-analysis
+	@$(Rscript) code/estimate_model.R

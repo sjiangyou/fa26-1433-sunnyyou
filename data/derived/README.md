@@ -9,6 +9,13 @@ Run `make derive` to create the categorized panels. The outputs are:
 - `county_nearest_neighbors.csv`: five-nearest-county proxy for geographic neighbors.
 - `analysis_panel.csv`: merged county-month analysis file with pre/post-Risk-Rating-2.0 and South Florida variables.
 
+The model stage, run by `make estimate-model` or as the final stage of
+`make all`, writes these additional reproducible artifacts under `model/`:
+
+- `model/annual_event_study_panel.csv`: annual Florida county observations used for estimation.
+- `model/event_study_coefficients.csv`: direct- and neighbor-flood event-study coefficients.
+- `model/event_study_fit_statistics.csv`: observation counts and fit statistics for each outcome.
+
 The nearest-neighbor file is a transparent first proxy based on county centroids,
 not a contiguous-border definition. The policy file does not contain a
 persistent household identifier, so `premium_change` is an aggregate change in

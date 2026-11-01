@@ -38,16 +38,17 @@ therefore not part of the main data, estimating equation, or `make all` workflow
 
 ## Estimating method
 
-The empirical strategy follows Gallagher’s event-study structure. The primary
-unit is a county-month observation rather than Gallagher’s community-year
-observation.
+The empirical strategy follows Gallagher’s event-study structure. The derived
+analysis panel is at the county-month level, but the currently implemented
+estimator collapses it to a balanced county-year panel rather than estimating
+the county-month specification directly.
 
 \[
-Y_{ct} = \sum_k \beta_k Flood_{c,t+k}
-+ \sum_k \gamma_k NeighborFlood_{c,t+k}
-+ \sum_k \beta_k^{Post}(Flood_{c,t+k} \times Post_t)
-+ \sum_k \gamma_k^{Post}(NeighborFlood_{c,t+k} \times Post_t)
-+ \alpha_c + \lambda_t + \varepsilon_{ct}.
+Y_{cy} = \sum_k \beta_k Flood_{c,y+k}
++ \sum_k \gamma_k NeighborFlood_{c,y+k}
++ \sum_k \beta_k^{Post}(Flood_{c,y+k} \times Post_y)
++ \sum_k \gamma_k^{Post}(NeighborFlood_{c,y+k} \times Post_y)
++ \alpha_c + \lambda_y + \varepsilon_{cy}.
 \]
 
 Here:
@@ -56,7 +57,13 @@ Here:
 - `NeighborFlood` identifies flooding in nearby counties.
 - `Post` identifies the post-Risk-Rating-2.0 period beginning in 2022.
 - `alpha_c` denotes county fixed effects.
-- `lambda_t` denotes calendar month-year fixed effects.
+- `lambda_y` denotes calendar-year fixed effects.
+
+The implemented model uses county fixed effects (`county_fips`) and
+calendar-year fixed effects (`year`), specified in `code/estimate_model.R` as
+`county_fips + year`. A county-month model with calendar month-year fixed
+effects remains a planned higher-frequency specification, not the model
+currently estimated by `make all`.
 
 The pre-period is 2015–2021 and the post-period begins in 2022. Because Risk
 Rating 2.0 was phased in beginning in late 2021, 2021 is treated as a

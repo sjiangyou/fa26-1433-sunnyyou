@@ -3,7 +3,7 @@
 # Create or update the project-local R environment. `renv` records the
 # resolved package versions in renv.lock after the first successful setup.
 
-required_packages <- c("here", "ggplot2", "data.table", "jsonlite")
+required_packages <- c("here", "ggplot2", "data.table", "jsonlite", "fixest")
 
 if (!requireNamespace("renv", quietly = TRUE)) {
     install.packages("renv", repos = "https://cloud.r-project.org")
