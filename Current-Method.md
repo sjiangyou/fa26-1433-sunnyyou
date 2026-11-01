@@ -71,6 +71,44 @@ common annual shocks. The county-month/calendar-month-year version above
 remains the planned higher-frequency specification rather than the estimator
 currently run by `make all`.
 
+### Notation and variable definitions
+
+The following notation applies to the implemented annual estimator unless
+otherwise noted:
+
+- \(c\) indexes counties. It does not index individual households, because the
+  public NFIP records are geographically aggregated and do not provide a
+  reliable persistent household identifier.
+- \(y\) indexes calendar years. The implemented outcome is \(Y_{cy}\), a
+  county-year NFIP outcome. The planned higher-frequency specification uses
+  \(t\) for calendar months and \(Y_{ct}\) for county-month outcomes.
+- \(k\) indexes event time in years relative to a flood year. For example,
+  \(k=0\) is the flood year, \(k=1\) is the following year, and \(k=-1\) is
+  the year immediately before the flood.
+- \(Y_{cy}\) is one of the annual NFIP outcomes estimated by the current model:
+  `log1p_policy_count`, `log1p_new_policy_records`, or
+  `log1p_policy_records`.
+- `EventTime` or `Flood` identifies a direct flood event for county \(c\) at
+  the relevant event time. `NeighborFlood` identifies a flood in one of the
+  county's modeled nearby counties.
+- `PostFloodCohort` identifies the flood event's Risk Rating 2.0 cohort: pre-
+  transition floods occurred in 2021 or earlier, while post-transition floods
+  occurred after 2021. It is an event-level classification, not a permanent
+  characteristic of a county.
+- \(\alpha_c\) denotes county fixed effects, implemented as `county_fips`.
+  These absorb time-invariant county characteristics.
+- \(\lambda_y\) denotes calendar-year fixed effects, implemented as `year`.
+  These absorb shocks common to counties in a given year.
+- \(\varepsilon_{cy}\) denotes the county-year error term.
+- Event time \(k=-1\) is omitted as the reference period. Coefficients for
+  other event times are interpreted relative to the year immediately before
+  the flood.
+
+In `code/estimate_model.R`, the pre- and post-transition event cohorts are
+implemented as separate regressors (`direct_pre`, `direct_post`,
+`neighbor_pre`, and `neighbor_post`) rather than as one literal
+`PostFloodCohort` interaction variable.
+
 The primary outcome is NFIP take-up measured from policy transactions. Since the
 public NFIP policy file does not contain a persistent household policy identifier
 or a complete housing denominator, the initial outcomes are county-month policy
