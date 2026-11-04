@@ -1,8 +1,8 @@
 #!/usr/bin/env Rscript
 
-# Translate log1p event-study coefficients into implied percentage changes.
+# Translate log event-study coefficients into implied percentage changes.
 #
-# For a coefficient beta from a log1p outcome, the corresponding percentage
+# For a coefficient beta from a log outcome, the corresponding percentage
 # change on the transformed outcome scale is 100 * (exp(beta) - 1). The script
 # preserves the original coefficient table and appends this translated value.
 

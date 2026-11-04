@@ -11,11 +11,10 @@ which introduced more individualized risk-based pricing. The central question
 is whether floods and nearby floods produce different NFIP take-up responses
 before and after the new pricing regime.
 
-The primary geographic focus is South Florida, with Miami-Dade, Broward, and
-Palm Beach as the core counties. The preferred comparison sample includes all
-Florida counties, allowing South Florida effects to be estimated relative to
-broader Florida trends. Additional South Florida counties are retained in a
-broader robustness definition.
+The original geographic focus was South Florida, with Miami-Dade, Broward, and
+Palm Beach as the core counties. The implemented analysis now uses all counties
+and state-like geographic units available in the data. South Florida indicators
+are retained for descriptive and subgroup analyses.
 
 ## Data
 
@@ -63,13 +62,16 @@ Rating 2.0 was phased in beginning in late 2021, 2021 is treated as a transition
 year in robustness checks.
 
 The currently implemented estimator collapses the county-month analysis panel
-to a balanced county-year panel. Its fixed effects are county fixed effects
-(`county_fips`) and calendar-year fixed effects (`year`), implemented in
-`code/estimate_model.R` as `county_fips + year`. County fixed effects absorb
-time-invariant county characteristics, while calendar-year fixed effects absorb
-common annual shocks. The county-month/calendar-month-year version above
-remains the planned higher-frequency specification rather than the estimator
-currently run by `make all`.
+to a balanced county-year panel for all available geographies. Its fixed effects
+are county fixed effects (`county_fips`) and state-by-year fixed effects
+(`state_group^year`), implemented in `code/estimate_model.R` as
+`county_fips + state_group^year`. The state group is the first two digits of
+county FIPS, so Washington, D.C., and U.S. territories are treated as their own
+state-like groups. County fixed effects absorb time-invariant county
+characteristics, while state-by-year fixed effects absorb shocks shared by
+counties within a state or territory in a given year. The county-month/calendar-
+month-year version above remains the planned higher-frequency specification
+rather than the estimator currently run by `make all`.
 
 ### Notation and variable definitions
 
@@ -86,8 +88,9 @@ otherwise noted:
   \(k=0\) is the flood year, \(k=1\) is the following year, and \(k=-1\) is
   the year immediately before the flood.
 - \(Y_{cy}\) is the annual county-level NFIP outcome. The primary outcome is
-  `log1p_new_policy_records`; `log1p_policy_count` and
-  `log1p_policy_records` are robustness outcomes.
+  `log_new_policy_records`; `log_policy_count` and `log_policy_records` are
+  robustness outcomes. The corresponding `log1p_*` columns are retained in
+  the saved annual panel for alternative specifications.
 - `EventTime` or `Flood` identifies a direct flood event for county \(c\) at
   the relevant event time. `NeighborFlood` identifies a flood in one of the
   county's modeled nearby counties.
@@ -97,8 +100,9 @@ otherwise noted:
   characteristic of a county.
 - \(\alpha_c\) denotes county fixed effects, implemented as `county_fips`.
   These absorb time-invariant county characteristics.
-- \(\lambda_y\) denotes calendar-year fixed effects, implemented as `year`.
-  These absorb shocks common to counties in a given year.
+- \(\lambda_{s(c),y}\) denotes state-by-year fixed effects, implemented as
+  `state_group^year`. These absorb shocks common to counties within a state or
+  territory in a given year.
 - \(\varepsilon_{cy}\) denotes the county-year error term.
 - Event time \(k=-1\) is omitted as the reference period. Coefficients for
   other event times are interpreted relative to the year immediately before
@@ -111,7 +115,7 @@ implemented as separate regressors (`direct_pre`, `direct_post`,
 
 ### Primary outcome definition
 
-The primary outcome is the log of one plus the annual number of new NFIP policy
+The primary outcome is the log of the annual number of new NFIP policy
 records in county \(c\) and year \(y\):
 
 \[
@@ -121,7 +125,7 @@ NewPolicyRecords_{cy}
 \]
 
 \[
-Y_{cy}=\log\left(1+NewPolicyRecords_{cy}\right).
+Y_{cy}=\log\left(NewPolicyRecords_{cy}\right).
 \]
 
 The equality identifies a policy record as new when its `originalNBDate` equals
@@ -129,8 +133,10 @@ its `policyEffectiveDate`. The annual count is obtained by summing the monthly
 counts. This is a record-based proxy for new NFIP take-up, not a count of unique
 households: the public NFIP policy file does not contain a persistent household
 identifier or a complete housing denominator. The other estimated outcomes are
-defined analogously as `log1p(policy_count)` and `log1p(policy_records)` and are
-used as robustness checks.
+defined analogously as `log(policy_count)` and `log(policy_records)` and are
+used as robustness checks. Since the ordinary log is undefined at zero, zero
+outcomes are stored as `NA` in the `log_*` columns and omitted from the
+corresponding model. The `log1p_*` columns remain available in the saved panel.
 
 ### Derived variables
 
@@ -141,7 +147,7 @@ The derivation workflow creates:
 - `flood_county_month.csv`: FEMA declaration counts, flood-declaration
   indicators, NFIP claim counts, reported damage, payments, and water depth.
 - `county_neighbors.csv`: counties sharing a positive-length boundary segment
-  with each Florida county.
+  with each available county.
 - `analysis_panel.csv`: merged county-month panel with South Florida,
   post-2022, flood-by-post, neighbor-by-post, premium-change, and ACS variables
   where available.

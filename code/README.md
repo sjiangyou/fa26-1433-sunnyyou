@@ -16,14 +16,16 @@ The current setup scripts are:
   summaries using chunked `data.table` reads.
 - `derive_flood_panel.R`: creates county-month FEMA declaration and claims
   measures using chunked `data.table` reads.
-- `derive_neighbor_panel.py`: creates the county-neighbor crosswalk by retaining
-  county pairs that share a positive-length boundary segment. It uses only the
-  Python standard library to parse the Census shapefile.
+- `derive_neighbor_panel.py`: creates the county-neighbor crosswalk for all
+  counties represented in the Census geography file by retaining county pairs
+  that share a positive-length boundary segment. It uses only the Python
+  standard library to parse the Census shapefile.
 - `derive_analysis_panel.R`: merges all derived inputs into `analysis_panel.csv`.
-- `estimate_model.R`: aggregates the analysis panel to annual Florida county
-  observations and estimates the annual direct- and neighbor-flood event study
-  with separate pre- and post-Risk-Rating-2.0 flood cohorts.
-- `translate_coefficients.R`: translates log1p event-study coefficients into
+- `estimate_model.R`: aggregates the analysis panel to annual county
+  observations for all available geographies and estimates the annual direct-
+  and neighbor-flood event study with separate pre- and post-Risk-Rating-2.0
+  flood cohorts, county fixed effects, and state-by-year fixed effects.
+- `translate_coefficients.R`: translates log event-study coefficients into
   implied percentage changes using `100 * (exp(estimate) - 1)`.
 - `setup_r_environment.R`: creates or restores the project-local `renv`
   environment with the packages required by the data and model scripts.

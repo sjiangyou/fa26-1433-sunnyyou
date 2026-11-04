@@ -27,7 +27,7 @@ and evaluation will use Python as those stages are added.
 
 The model stage writes these reproducible artifacts to `data/derived/model/`:
 
-- `annual_event_study_panel.csv`: annual Florida county observations used for estimation;
+- `annual_event_study_panel.csv`: annual county observations for all available states and territories used for estimation;
 - `event_study_coefficients.csv`: event-study coefficient estimates and standard errors;
 - `event_study_coefficients_translated.csv`: coefficient estimates with implied
   percentage changes calculated as `100 * (exp(estimate) - 1)`;

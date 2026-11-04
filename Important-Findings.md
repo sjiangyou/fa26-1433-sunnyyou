@@ -14,10 +14,10 @@ The research question is:
 > Did households’ NFIP insurance responses to direct floods and nearby floods
 > change after the introduction of Risk Rating 2.0?
 
-The primary focus is South Florida, with Miami-Dade, Broward, and Palm Beach as
-the core counties. The preferred comparison sample includes all Florida
-counties, allowing South Florida effects to be compared with broader Florida
-responses.
+The original primary focus was South Florida, with Miami-Dade, Broward, and Palm
+Beach as the core counties. The implemented model now uses all counties and
+state-like geographic units available in the data, while retaining South
+Florida indicators for descriptive comparisons.
 
 ## Data
 
@@ -48,7 +48,7 @@ Y_{cy} = \sum_k \beta_k Flood_{c,y+k}
 + \sum_k \gamma_k NeighborFlood_{c,y+k}
 + \sum_k \beta_k^{Post}(Flood_{c,y+k} \times Post_y)
 + \sum_k \gamma_k^{Post}(NeighborFlood_{c,y+k} \times Post_y)
-+ \alpha_c + \lambda_y + \varepsilon_{cy}.
++ \alpha_c + \lambda_{s(c),y} + \varepsilon_{cy}.
 \]
 
 Here:
@@ -57,28 +57,32 @@ Here:
 - `NeighborFlood` identifies flooding in nearby counties.
 - `Post` identifies the post-Risk-Rating-2.0 period beginning in 2022.
 - `alpha_c` denotes county fixed effects.
-- `lambda_y` denotes calendar-year fixed effects.
+- `lambda_{s(c),y}` denotes state-by-year fixed effects.
 
-The implemented model uses county fixed effects (`county_fips`) and
-calendar-year fixed effects (`year`), specified in `code/estimate_model.R` as
-`county_fips + year`. A county-month model with calendar month-year fixed
-effects remains a planned higher-frequency specification, not the model
-currently estimated by `make all`.
+The implemented model uses county fixed effects (`county_fips`) and state-by-
+year fixed effects (`state_group^year`), specified in `code/estimate_model.R` as
+`county_fips + state_group^year`. The state group is based on the first two
+county-FIPS digits; D.C. and U.S. territories therefore receive their own
+state-like groups. A county-month model with calendar month-year fixed effects
+remains a planned higher-frequency specification, not the model currently
+estimated by `make all`.
 
-The primary outcome is annual new NFIP policy records:
+The primary outcome is the log of annual new NFIP policy records:
 
 \[
 NewPolicyRecords_{cy}
 = \sum_{i\in(c,y)}
 1\{originalNBDate_i = policyEffectiveDate_i\},
 \qquad
-Y_{cy}=\log\left(1+NewPolicyRecords_{cy}\right).
+Y_{cy}=\log\left(NewPolicyRecords_{cy}\right).
 \]
 
 Thus, a record is classified as new when its original new-business date equals
 its effective date. This measures new NFIP policy records rather than unique
 households. The models also estimate log policy counts and log policy records as
-robustness outcomes.
+robustness outcomes. Zero-valued outcomes are undefined on this scale and are
+omitted from the corresponding model; the annual panel retains the previous
+`log1p_*` versions for alternative specifications.
 
 The pre-period is 2015–2021 and the post-period begins in 2022. Because Risk
 Rating 2.0 was phased in beginning in late 2021, 2021 is treated as a
@@ -98,7 +102,7 @@ The categorized derivation workflow creates:
 - `flood_county_month.csv`: FEMA declaration counts, flood indicators, NFIP
   claims, reported damage, payments, and water depth by county and month.
 - `county_neighbors.csv`: counties sharing a positive-length boundary segment
-  with each Florida county.
+  with each available county.
 - `analysis_panel.csv`: merged county-month panel with flood, neighbor,
   post-2022, South Florida, premium, and ACS variables where available.
 

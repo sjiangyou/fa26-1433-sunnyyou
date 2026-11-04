@@ -155,13 +155,13 @@ def build_crosswalk():
 
     rows = []
     for segment, counties in segment_counties.items():
-        florida_counties = sorted(county for county in counties if county.startswith("12"))
-        if not florida_counties or len(counties) < 2:
+        all_counties = sorted(counties)
+        if len(all_counties) < 2:
             continue
         distance = segment_length_miles(segment[0], segment[1])
         if distance <= 0:
             continue
-        for county in florida_counties:
+        for county in all_counties:
             for neighbor in sorted(counties):
                 if neighbor != county:
                     rows.append((county, neighbor, distance))

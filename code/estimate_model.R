@@ -2,16 +2,19 @@
 
 # Estimate the annual direct- and neighbor-flood event study.
 #
-# The monthly analysis panel is collapsed to a balanced Florida county-year
-# panel. Floods are represented as event years, and the event-time regressors
+# The monthly analysis panel is collapsed to a balanced county-year panel for
+# all geographies represented in the input data. Floods are represented as
+# event years, and the event-time regressors
 # count pre- and post-Risk-Rating-2.0 flood events separately. Counting events
 # rather than retaining only the first event preserves overlapping flood
 # responses in the short event window.
 #
-# The primary outcome is log1p(new_policy_records). In the policy derivation,
+# The primary outcome is log(new_policy_records). In the policy derivation,
 # new_policy_records counts policy records for which originalNBDate equals
-# policyEffectiveDate. The annual outcome is therefore log(1 + the annual
-# count of these new policy records), not a count of unique households.
+# policyEffectiveDate. The annual outcome is therefore the log of the annual
+# count of these new policy records, not a count of unique households. Because
+# log(0) is undefined, zero-valued outcomes are represented as NA in the log
+# columns and are omitted from the corresponding model by fixest.
 
 args <- commandArgs(trailingOnly = FALSE)
 script_argument <- args[grepl("^--file=", args)]
@@ -73,12 +76,17 @@ panel <- data.table::fread(input_file, select = panel_columns,
     showProgress = FALSE)
 panel[, county_fips := trimws(as.character(county_fips))]
 panel[, year := as.integer(year)]
-panel <- panel[grepl("^12[0-9]{3}$", county_fips) &
+panel <- panel[grepl("^[0-9]{5}$", county_fips) &
     year >= start_year & year <= end_year]
-if (nrow(panel) == 0L) stop("No Florida observations in the requested years")
+if (nrow(panel) == 0L) stop("No county observations in the requested years")
+# County FIPS state codes provide a stable state-group identifier for the
+# state-by-year fixed effects. Washington, D.C., and U.S. territories retain
+# their own FIPS codes and are therefore treated as separate state-like groups.
+panel[, state_group := substr(county_fips, 1L, 2L)]
 
 annual <- panel[, .(
     state = first_nonmissing(state),
+    state_group = first_nonmissing(state_group),
     policy_count = sum(policy_count, na.rm = TRUE),
     new_policy_records = sum(new_policy_records, na.rm = TRUE),
     policy_records = sum(policy_records, na.rm = TRUE),
@@ -91,7 +99,7 @@ annual <- panel[, .(
 
 # Complete the county-year panel. Missing policy observations represent zero
 # recorded policies after the county and year have entered the analysis panel.
-counties <- unique(annual[, .(county_fips, state)])
+counties <- unique(annual[, .(county_fips, state, state_group)])
 years <- data.table::data.table(year = start_year:end_year)
 panel_year <- data.table::CJ(county_fips = counties$county_fips,
     year = years$year, unique = TRUE)
@@ -141,6 +149,12 @@ panel_year[, post_rr20 := as.integer(year >= 2022L)]
 panel_year[, log1p_policy_count := log1p(policy_count)]
 panel_year[, log1p_new_policy_records := log1p(new_policy_records)]
 panel_year[, log1p_policy_records := log1p(policy_records)]
+panel_year[, log_policy_count := data.table::fifelse(policy_count > 0,
+    log(policy_count), NA_real_)]
+panel_year[, log_new_policy_records := data.table::fifelse(new_policy_records > 0,
+    log(new_policy_records), NA_real_)]
+panel_year[, log_policy_records := data.table::fifelse(policy_records > 0,
+    log(policy_records), NA_real_)]
 
 # Save the exact annual regression data for reproducibility and diagnostics.
 data.table::setorder(panel_year, county_fips, year)
@@ -154,16 +168,17 @@ regressor_names <- unlist(lapply(c("direct", "neighbor"), function(prefix) {
 }))
 regressor_formula <- paste(regressor_names, collapse = " + ")
 # Estimate the primary new-policy outcome first, followed by robustness
-# outcomes based on policy counts and all policy records.
-outcomes <- c("log1p_new_policy_records", "log1p_policy_count",
-    "log1p_policy_records")
+# outcomes based on policy counts and all policy records. The log1p outcomes
+# remain in the saved panel but are not estimated by this specification.
+outcomes <- c("log_new_policy_records", "log_policy_count",
+    "log_policy_records")
 
 coefficient_parts <- list()
 fit_parts <- list()
 model_summaries <- list()
 for (outcome in outcomes) {
     formula <- stats::as.formula(paste0(outcome, " ~ ", regressor_formula,
-        " | county_fips + year"))
+        " | county_fips + state_group^year"))
     model <- fixest::feols(formula, data = panel_year,
         cluster = ~county_fips, warn = FALSE)
     table <- as.data.frame(fixest::coeftable(model))
@@ -193,7 +208,8 @@ write_csv_with_message(data.table::rbindlist(fit_parts),
 # Print a compact result summary for interactive runs and reproducibility logs.
 message("\nAnnual flood event-study summary")
 message("Sample: ", nrow(panel_year), " county-year observations across ",
-    data.table::uniqueN(panel_year$county_fips), " Florida counties")
+    data.table::uniqueN(panel_year$county_fips), " counties and ",
+    data.table::uniqueN(panel_year$state_group), " state-like groups")
 message("Flood event years: direct pre-RR2.0 = ", nrow(direct_pre),
     "; direct post-RR2.0 = ", nrow(direct_post),
     "; neighbor pre-RR2.0 = ", nrow(neighbor_pre),
