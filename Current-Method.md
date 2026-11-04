@@ -30,8 +30,8 @@ The current raw-data inventory includes:
 - FEMA disaster declarations, including incident dates, declaration types, and
   designated counties.
 - ACS five-year county controls: population, housing units, and median income.
-- Census county Gazetteer geography used to construct a transparent geographic
-  neighbor proxy.
+- Census TIGER/Line county polygons used to construct the geographic-neighbor
+  crosswalk.
 
 Raw files are documented in `data/raw/SOURCES.md` and are downloaded through
 the categorized scripts described below.
@@ -85,9 +85,9 @@ otherwise noted:
 - \(k\) indexes event time in years relative to a flood year. For example,
   \(k=0\) is the flood year, \(k=1\) is the following year, and \(k=-1\) is
   the year immediately before the flood.
-- \(Y_{cy}\) is one of the annual NFIP outcomes estimated by the current model:
-  `log1p_policy_count`, `log1p_new_policy_records`, or
-  `log1p_policy_records`.
+- \(Y_{cy}\) is the annual county-level NFIP outcome. The primary outcome is
+  `log1p_new_policy_records`; `log1p_policy_count` and
+  `log1p_policy_records` are robustness outcomes.
 - `EventTime` or `Flood` identifies a direct flood event for county \(c\) at
   the relevant event time. `NeighborFlood` identifies a flood in one of the
   county's modeled nearby counties.
@@ -109,11 +109,28 @@ implemented as separate regressors (`direct_pre`, `direct_post`,
 `neighbor_pre`, and `neighbor_post`) rather than as one literal
 `PostFloodCohort` interaction variable.
 
-The primary outcome is NFIP take-up measured from policy transactions. Since the
-public NFIP policy file does not contain a persistent household policy identifier
-or a complete housing denominator, the initial outcomes are county-month policy
-flows and policy counts, without an interaction term with premiums. 
-ACS housing units can later be used to normalize these measures.
+### Primary outcome definition
+
+The primary outcome is the log of one plus the annual number of new NFIP policy
+records in county \(c\) and year \(y\):
+
+\[
+NewPolicyRecords_{cy}
+= \sum_{i\in(c,y)}
+1\{originalNBDate_i = policyEffectiveDate_i\},
+\]
+
+\[
+Y_{cy}=\log\left(1+NewPolicyRecords_{cy}\right).
+\]
+
+The equality identifies a policy record as new when its `originalNBDate` equals
+its `policyEffectiveDate`. The annual count is obtained by summing the monthly
+counts. This is a record-based proxy for new NFIP take-up, not a count of unique
+households: the public NFIP policy file does not contain a persistent household
+identifier or a complete housing denominator. The other estimated outcomes are
+defined analogously as `log1p(policy_count)` and `log1p(policy_records)` and are
+used as robustness checks.
 
 ### Derived variables
 
@@ -123,7 +140,8 @@ The derivation workflow creates:
   cancellations, coverage, and mean observed premiums by county and month.
 - `flood_county_month.csv`: FEMA declaration counts, flood-declaration
   indicators, NFIP claim counts, reported damage, payments, and water depth.
-- `county_nearest_neighbors.csv`: five nearest counties for Florida counties.
+- `county_neighbors.csv`: counties sharing a positive-length boundary segment
+  with each Florida county.
 - `analysis_panel.csv`: merged county-month panel with South Florida,
   post-2022, flood-by-post, neighbor-by-post, premium-change, and ACS variables
   where available.
@@ -210,9 +228,9 @@ server is required.
   private flood-insurance policies are not in the FEMA files.
 - NFIP policy transactions are redacted and do not support reliable household
   longitudinal histories.
-- The current neighbor measure uses five nearest county centroids, not
-  contiguous county borders. It is a documented proxy that should be replaced
-  with a border-adjacency crosswalk for the preferred specification.
+- The current neighbor measure uses a border-adjacency crosswalk based on
+  Census TIGER/Line county polygons. Counties that only meet at a point are
+  excluded.
 - FEMA disaster declarations do not capture every physical flood. Claims,
   precipitation, gauges, or inundation data should be used in robustness checks.
 - A pre/post-2022 comparison identifies a change in the overall flood-response

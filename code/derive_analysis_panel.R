@@ -8,13 +8,13 @@ script <- sub("^--file=", "", args[grepl("^--file=", args)][1])
 root <- normalizePath(file.path(dirname(script), ".."))
 derived <- file.path(root, "data", "derived")
 raw_census <- file.path(root, "data", "raw", "census")
-required <- c("policy_county_month.csv", "flood_county_month.csv", "county_nearest_neighbors.csv")
+required <- c("policy_county_month.csv", "flood_county_month.csv", "county_neighbors.csv")
 missing <- required[!file.exists(file.path(derived, required))]
 if (length(missing) > 0) stop("Missing derived inputs: ", paste(missing, collapse = ", "))
 
 policy <- read.csv(file.path(derived, "policy_county_month.csv"), stringsAsFactors = FALSE)
 flood <- read.csv(file.path(derived, "flood_county_month.csv"), stringsAsFactors = FALSE)
-neighbors <- read.csv(file.path(derived, "county_nearest_neighbors.csv"), stringsAsFactors = FALSE)
+neighbors <- read.csv(file.path(derived, "county_neighbors.csv"), stringsAsFactors = FALSE)
 policy$month <- as.character(as.Date(policy$month))
 flood$month <- as.character(as.Date(flood$month))
 

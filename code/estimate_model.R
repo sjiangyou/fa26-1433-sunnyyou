@@ -7,6 +7,11 @@
 # count pre- and post-Risk-Rating-2.0 flood events separately. Counting events
 # rather than retaining only the first event preserves overlapping flood
 # responses in the short event window.
+#
+# The primary outcome is log1p(new_policy_records). In the policy derivation,
+# new_policy_records counts policy records for which originalNBDate equals
+# policyEffectiveDate. The annual outcome is therefore log(1 + the annual
+# count of these new policy records), not a count of unique households.
 
 args <- commandArgs(trailingOnly = FALSE)
 script_argument <- args[grepl("^--file=", args)]
@@ -148,7 +153,9 @@ regressor_names <- unlist(lapply(c("direct", "neighbor"), function(prefix) {
     }))
 }))
 regressor_formula <- paste(regressor_names, collapse = " + ")
-outcomes <- c("log1p_policy_count", "log1p_new_policy_records",
+# Estimate the primary new-policy outcome first, followed by robustness
+# outcomes based on policy counts and all policy records.
+outcomes <- c("log1p_new_policy_records", "log1p_policy_count",
     "log1p_policy_records")
 
 coefficient_parts <- list()

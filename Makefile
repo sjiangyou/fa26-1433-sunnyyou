@@ -6,9 +6,9 @@
 PYTHON ?= .venv/bin/python
 Rscript ?= Rscript
 
-.PHONY: all help setup-python download-fema download-acs download-geography download-raw derive-policy derive-flood derive-neighbors derive-analysis derive estimate-model
+.PHONY: all help setup-python download-fema download-acs download-geography download-raw derive-policy derive-flood derive-neighbors derive-analysis derive estimate-model translate-coefficients
 
-all: setup-python setup-r download-raw derive estimate-model
+all: setup-python setup-r download-raw derive estimate-model translate-coefficients
 
 help:
 	@printf '%s\n' \
@@ -20,7 +20,8 @@ help:
 		'make download-geography Download Census county geography' \
 		'make download-raw Download all configured raw data' \
 		'make derive       Create all derived analysis panels' \
-		'make estimate-model Estimate the annual flood event-study models'
+		'make estimate-model Estimate the annual flood event-study models' \
+		'make translate-coefficients Translate model coefficients into percentage changes'
 
 setup-python:
 	@if [ ! -x "$(PYTHON)" ]; then \
@@ -57,7 +58,7 @@ derive-flood: download-fema
 	@$(Rscript) code/derive_flood_panel.R
 
 derive-neighbors: download-geography
-	@$(Rscript) code/derive_neighbor_panel.R
+	@$(PYTHON) code/derive_neighbor_panel.py
 
 derive-analysis: derive-policy derive-flood derive-neighbors download-acs
 	@$(Rscript) code/derive_analysis_panel.R
@@ -66,3 +67,6 @@ derive: derive-analysis
 
 estimate-model: derive-analysis
 	@$(Rscript) code/estimate_model.R
+
+translate-coefficients: estimate-model
+	@$(Rscript) code/translate_coefficients.R

@@ -30,8 +30,8 @@ The main raw inputs are:
 - FEMA disaster declarations: incident dates, declaration types, and designated
   counties.
 - ACS county controls: population, housing units, and median income.
-- Census county Gazetteer coordinates for constructing a geographic-neighbor
-  proxy.
+- Census TIGER/Line county polygons for constructing a geographic-neighbor
+  crosswalk.
 
 The study does not use media influences. GDELT and television-market data are
 therefore not part of the main data, estimating equation, or `make all` workflow.
@@ -65,6 +65,21 @@ calendar-year fixed effects (`year`), specified in `code/estimate_model.R` as
 effects remains a planned higher-frequency specification, not the model
 currently estimated by `make all`.
 
+The primary outcome is annual new NFIP policy records:
+
+\[
+NewPolicyRecords_{cy}
+= \sum_{i\in(c,y)}
+1\{originalNBDate_i = policyEffectiveDate_i\},
+\qquad
+Y_{cy}=\log\left(1+NewPolicyRecords_{cy}\right).
+\]
+
+Thus, a record is classified as new when its original new-business date equals
+its effective date. This measures new NFIP policy records rather than unique
+households. The models also estimate log policy counts and log policy records as
+robustness outcomes.
+
 The pre-period is 2015–2021 and the post-period begins in 2022. Because Risk
 Rating 2.0 was phased in beginning in late 2021, 2021 is treated as a
 transition year and will be excluded or handled separately in robustness
@@ -82,8 +97,8 @@ The categorized derivation workflow creates:
   cancellations, coverage, and mean observed premiums by county and month.
 - `flood_county_month.csv`: FEMA declaration counts, flood indicators, NFIP
   claims, reported damage, payments, and water depth by county and month.
-- `county_nearest_neighbors.csv`: five nearest counties for Florida counties,
-  used as the initial geographic-neighbor proxy.
+- `county_neighbors.csv`: counties sharing a positive-length boundary segment
+  with each Florida county.
 - `analysis_panel.csv`: merged county-month panel with flood, neighbor,
   post-2022, South Florida, premium, and ACS variables where available.
 
@@ -115,9 +130,8 @@ exclusions, county population and housing controls, and alternative samples.
   longitudinal histories.
 - FEMA declarations do not capture every physical flood; claims, rainfall,
   gauges, or inundation data may be used in robustness checks.
-- The current neighbor measure uses five nearest county centroids rather than
-  contiguous county borders. A border-adjacency crosswalk is preferred for the
-  final specification.
+- The current neighbor measure uses counties sharing a positive-length boundary
+  segment. Counties that only meet at a point are excluded.
 - The pre/post design estimates a change in the overall flood-response
   relationship. Without a clean individual premium-change measure, it does not
   separately identify the causal effect of premium changes.

@@ -29,6 +29,7 @@ FILES = {
     "FimaNfipPoliciesV2.csv": "https://www.fema.gov/api/open/v2/FimaNfipPolicies.csv",
 }
 
+
 def download(name: str, url: str) -> None:
     target = RAW / name
     if target.exists() and target.stat().st_size > 0:

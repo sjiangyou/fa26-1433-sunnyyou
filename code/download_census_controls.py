@@ -7,7 +7,6 @@ from pathlib import Path
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-
 ROOT = Path(__file__).resolve().parents[1]
 RAW = ROOT / "data" / "raw" / "census"
 YEARS = range(2015, 2025)

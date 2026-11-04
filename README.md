@@ -29,6 +29,8 @@ The model stage writes these reproducible artifacts to `data/derived/model/`:
 
 - `annual_event_study_panel.csv`: annual Florida county observations used for estimation;
 - `event_study_coefficients.csv`: event-study coefficient estimates and standard errors;
+- `event_study_coefficients_translated.csv`: coefficient estimates with implied
+  percentage changes calculated as `100 * (exp(estimate) - 1)`;
 - `event_study_fit_statistics.csv`: observation counts and model fit statistics.
 
 The raw-data acquisition script uses FEMA's public OpenFEMA endpoints:
