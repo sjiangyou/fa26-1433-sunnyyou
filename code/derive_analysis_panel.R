@@ -29,13 +29,21 @@ panel$flood_x_post_rr20 <- panel$flood_declaration * panel$post_rr20
 neighbor_values <- merge(neighbors,
     flood[, c("county_fips", "month", "flood_declaration", "claim_count")],
     by.x = "neighbor_fips", by.y = "county_fips", all = FALSE)
-neighbor_values$neighbor_flood <- neighbor_values$flood_declaration
-neighbor_panel <- aggregate(cbind(neighbor_flood, claim_count) ~ county_fips + month,
+neighbor_values$adjacent_flood_count <- neighbor_values$flood_declaration
+neighbor_panel <- aggregate(cbind(adjacent_flood_count, claim_count) ~ county_fips + month,
     data = neighbor_values, FUN = sum, na.rm = TRUE)
 names(neighbor_panel)[names(neighbor_panel) == "claim_count"] <- "neighbor_claim_count"
 panel <- merge(panel, neighbor_panel, by = c("county_fips", "month"), all.x = TRUE)
-panel$neighbor_flood[is.na(panel$neighbor_flood)] <- 0
+panel$adjacent_flood_count[is.na(panel$adjacent_flood_count)] <- 0
 panel$neighbor_claim_count[is.na(panel$neighbor_claim_count)] <- 0
+# Gallagher's geographic-neighbor treatment applies only to places that were
+# not themselves flooded. This monthly indicator is useful for descriptive
+# work. The annual estimator imposes the exclusion again after aggregation so
+# a county flooded in any month of a year cannot be a neighbor in that year.
+panel$neighbor_flood <- as.integer(
+    panel$adjacent_flood_count > 0 &
+        (is.na(panel$flood_declaration) | panel$flood_declaration == 0)
+)
 panel$neighbor_flood_x_post_rr20 <- panel$neighbor_flood * panel$post_rr20
 
 acs_rows <- list()

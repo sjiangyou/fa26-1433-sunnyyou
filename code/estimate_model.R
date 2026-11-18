@@ -4,10 +4,14 @@
 #
 # The monthly analysis panel is collapsed to a balanced county-year panel for
 # all geographies represented in the input data. Floods are represented as
-# event years, and the event-time regressors
-# count pre- and post-Risk-Rating-2.0 flood events separately. Counting events
-# rather than retaining only the first event preserves overlapping flood
-# responses in the short event window.
+# event years. Direct floods and Gallagher-style geographic-neighbor floods are
+# mutually exclusive within a county-year: a neighbor event requires at least
+# one adjacent flooded county and no direct flood in the focal county. Each
+# direct- and neighbor-flood event-time indicator enters once
+# as the pre-Risk-Rating-2.0 response and once interacted with an indicator for
+# a post-Risk-Rating-2.0 flood cohort. The interaction coefficient is therefore
+# the post-minus-pre response difference. Counting events rather than retaining
+# only the first event preserves overlapping responses in the event window.
 #
 # The primary outcome is log(new_policy_records). In the policy derivation,
 # new_policy_records counts policy records for which originalNBDate equals
@@ -47,9 +51,10 @@ event_label <- function(event_time) {
 }
 
 first_nonmissing <- function(values) {
-    values <- values[!is.na(values)]
+    values <- trimws(as.character(values))
+    values <- values[!is.na(values) & nzchar(values)]
     if (length(values) == 0L) return(NA_character_)
-    as.character(values[1L])
+    values[1L]
 }
 
 first_nonmissing_numeric <- function(values) {
@@ -71,7 +76,7 @@ write_csv_with_message <- function(data, path) {
 
 panel_columns <- c("county_fips", "year", "state", "policy_count",
     "new_policy_records", "policy_records", "flood_declaration",
-    "neighbor_flood", "population", "housing_units", "median_income")
+    "adjacent_flood_count", "population", "housing_units", "median_income")
 panel <- data.table::fread(input_file, select = panel_columns,
     showProgress = FALSE)
 panel[, county_fips := trimws(as.character(county_fips))]
@@ -79,49 +84,69 @@ panel[, year := as.integer(year)]
 panel <- panel[grepl("^[0-9]{5}$", county_fips) &
     year >= start_year & year <= end_year]
 if (nrow(panel) == 0L) stop("No county observations in the requested years")
-# County FIPS state codes provide a stable state-group identifier for the
-# state-by-year fixed effects. Washington, D.C., and U.S. territories retain
-# their own FIPS codes and are therefore treated as separate state-like groups.
-panel[, state_group := substr(county_fips, 1L, 2L)]
+# Construct one county lookup row per FIPS code before annual aggregation.
+# State labels are intermittently missing in the raw panel, so taking unique
+# county-state pairs would create two lookup rows for some counties and would
+# duplicate every year when merged into the balanced panel. The state-group
+# identifier comes directly from FIPS and is therefore not affected by missing
+# state labels. Washington, D.C., and U.S. territories retain their own codes.
+counties <- panel[, .(state = first_nonmissing(state)), by = county_fips]
+counties[, state_group := substr(county_fips, 1L, 2L)]
+if (counties[, anyDuplicated(county_fips)] > 0L) {
+    stop("County lookup must contain exactly one row per county FIPS")
+}
 
 annual <- panel[, .(
-    state = first_nonmissing(state),
-    state_group = first_nonmissing(state_group),
     policy_count = sum(policy_count, na.rm = TRUE),
     new_policy_records = sum(new_policy_records, na.rm = TRUE),
     policy_records = sum(policy_records, na.rm = TRUE),
     direct_flood = annual_any(flood_declaration),
-    neighbor_flood = annual_any(neighbor_flood),
+    adjacent_flood = annual_any(adjacent_flood_count),
     population = first_nonmissing_numeric(population),
     housing_units = first_nonmissing_numeric(housing_units),
     median_income = first_nonmissing_numeric(median_income)
 ), by = .(county_fips, year)]
 
-# Complete the county-year panel. Missing policy observations represent zero
-# recorded policies after the county and year have entered the analysis panel.
-counties <- unique(annual[, .(county_fips, state, state_group)])
+# Complete the county-year panel from the one-row-per-county lookup. Missing
+# policy observations represent zero recorded policies after panel entry.
 years <- data.table::data.table(year = start_year:end_year)
 panel_year <- data.table::CJ(county_fips = counties$county_fips,
     year = years$year, unique = TRUE)
 panel_year <- merge(panel_year, counties, by = "county_fips", all.x = TRUE)
 panel_year <- merge(panel_year, annual, by = c("county_fips", "year"), all.x = TRUE)
+expected_rows <- nrow(counties) * nrow(years)
+duplicate_county_years <- panel_year[, .N, by = .(county_fips, year)][N > 1L, .N]
+if (nrow(panel_year) != expected_rows || duplicate_county_years > 0L) {
+    stop("Balanced panel must contain exactly one row per county-year; expected ",
+        expected_rows, " rows but found ", nrow(panel_year), " rows and ",
+        duplicate_county_years, " duplicated county-years")
+}
 for (column in c("policy_count", "new_policy_records", "policy_records",
-    "direct_flood", "neighbor_flood")) {
+    "direct_flood", "adjacent_flood")) {
     panel_year[is.na(get(column)), (column) := 0]
+}
+
+# Match Gallagher's geographic-neighbor definition: a county-year is a
+# neighbor event only when an adjacent county floods and the focal county does
+# not. Keep adjacent_flood in the saved panel to make the exclusion auditable.
+panel_year[, neighbor_flood := as.integer(
+    adjacent_flood == 1L & direct_flood == 0L)]
+if (panel_year[direct_flood == 1L & neighbor_flood == 1L, .N] > 0L) {
+    stop("Direct- and neighbor-flood treatments must be mutually exclusive")
 }
 
 # Add event-time counts. A county with two qualifying flood event years has a
 # value of two in the relevant event-time regressor, preserving overlapping
 # events rather than silently choosing one event.
-add_event_regressors <- function(data, event_data, prefix, cohort_name) {
+add_event_regressors <- function(data, event_data, prefix) {
     if (nrow(event_data) == 0L) {
         for (event_time in event_times) {
-            data[, paste0(prefix, "_", cohort_name, "_", event_label(event_time)) := 0]
+            data[, paste0(prefix, "_", event_label(event_time)) := 0]
         }
         return(data)
     }
     for (event_time in event_times) {
-        column <- paste0(prefix, "_", cohort_name, "_", event_label(event_time))
+        column <- paste0(prefix, "_", event_label(event_time))
         values <- event_data[, .(county_fips, year = event_year + event_time,
             value = 1L)][, .(value = sum(value)), by = .(county_fips, year)]
         data <- merge(data, values, by = c("county_fips", "year"), all.x = TRUE)
@@ -135,15 +160,18 @@ direct_events <- panel_year[direct_flood == 1L,
     .(county_fips, event_year = year)]
 neighbor_events <- panel_year[neighbor_flood == 1L,
     .(county_fips, event_year = year)]
-direct_pre <- direct_events[event_year <= transition_year]
 direct_post <- direct_events[event_year > transition_year]
-neighbor_pre <- neighbor_events[event_year <= transition_year]
 neighbor_post <- neighbor_events[event_year > transition_year]
 
-panel_year <- add_event_regressors(panel_year, direct_pre, "direct", "pre")
-panel_year <- add_event_regressors(panel_year, direct_post, "direct", "post")
-panel_year <- add_event_regressors(panel_year, neighbor_pre, "neighbor", "pre")
-panel_year <- add_event_regressors(panel_year, neighbor_post, "neighbor", "post")
+# The all-event columns identify the pre-cohort response. The post-difference
+# columns are interactions: they equal the corresponding event-time count only
+# for floods whose event year is after the Risk Rating 2.0 transition.
+panel_year <- add_event_regressors(panel_year, direct_events, "direct")
+panel_year <- add_event_regressors(panel_year, direct_post,
+    "direct_post_difference")
+panel_year <- add_event_regressors(panel_year, neighbor_events, "neighbor")
+panel_year <- add_event_regressors(panel_year, neighbor_post,
+    "neighbor_post_difference")
 
 panel_year[, post_rr20 := as.integer(year >= 2022L)]
 panel_year[, log1p_policy_count := log1p(policy_count)]
@@ -162,9 +190,9 @@ write_csv_with_message(panel_year,
     file.path(output_dir, "annual_event_study_panel.csv"))
 
 regressor_names <- unlist(lapply(c("direct", "neighbor"), function(prefix) {
-    unlist(lapply(c("pre", "post"), function(cohort) {
-        paste0(prefix, "_", cohort, "_", vapply(event_times, event_label, character(1)))
-    }))
+    c(paste0(prefix, "_", vapply(event_times, event_label, character(1))),
+        paste0(prefix, "_post_difference_",
+            vapply(event_times, event_label, character(1))))
 }))
 regressor_formula <- paste(regressor_names, collapse = " + ")
 # Estimate the primary new-policy outcome first, followed by robustness
@@ -175,7 +203,78 @@ outcomes <- c("log_new_policy_records", "log_policy_count",
 
 coefficient_parts <- list()
 fit_parts <- list()
+effect_parts <- list()
 model_summaries <- list()
+
+make_effect_row <- function(outcome, exposure, event_time, effect_type,
+        term, estimate, variance) {
+    std_error <- if (is.na(variance) || variance < 0) NA_real_ else sqrt(variance)
+    statistic <- estimate / std_error
+    data.table::data.table(
+        outcome = outcome,
+        exposure = exposure,
+        event_time = event_time,
+        effect_type = effect_type,
+        coefficient_of_interest = effect_type == "post_minus_pre_difference",
+        estimable = !is.na(estimate) && !is.na(std_error),
+        term = term,
+        estimate = estimate,
+        std_error = std_error,
+        statistic = statistic,
+        p_value = 2 * stats::pnorm(-abs(statistic)),
+        ci_lower = estimate - stats::qnorm(0.975) * std_error,
+        ci_upper = estimate + stats::qnorm(0.975) * std_error
+    )
+}
+
+build_effect_table <- function(model, outcome) {
+    estimates <- stats::coef(model)
+    covariance <- stats::vcov(model)
+    rows <- list()
+    row_index <- 1L
+    for (exposure in c("direct", "neighbor")) {
+        for (event_time in event_times) {
+            label <- event_label(event_time)
+            baseline_term <- paste0(exposure, "_", label)
+            difference_term <- paste0(exposure, "_post_difference_", label)
+            baseline_available <- baseline_term %in% names(estimates)
+            difference_available <- difference_term %in% names(estimates)
+
+            baseline_estimate <- if (baseline_available) {
+                estimates[[baseline_term]]
+            } else NA_real_
+            difference_estimate <- if (difference_available) {
+                estimates[[difference_term]]
+            } else NA_real_
+            baseline_variance <- if (baseline_available) {
+                covariance[baseline_term, baseline_term]
+            } else NA_real_
+            difference_variance <- if (difference_available) {
+                covariance[difference_term, difference_term]
+            } else NA_real_
+            post_variance <- if (baseline_available && difference_available) {
+                baseline_variance + difference_variance +
+                    2 * covariance[baseline_term, difference_term]
+            } else NA_real_
+
+            rows[[row_index]] <- make_effect_row(outcome, exposure, event_time,
+                "pre_response", baseline_term, baseline_estimate,
+                baseline_variance)
+            rows[[row_index + 1L]] <- make_effect_row(outcome, exposure,
+                event_time, "post_response",
+                paste0(baseline_term, " + ", difference_term),
+                if (baseline_available && difference_available) {
+                    baseline_estimate + difference_estimate
+                } else NA_real_, post_variance)
+            rows[[row_index + 2L]] <- make_effect_row(outcome, exposure,
+                event_time, "post_minus_pre_difference", difference_term,
+                difference_estimate, difference_variance)
+            row_index <- row_index + 3L
+        }
+    }
+    data.table::rbindlist(rows, fill = TRUE)
+}
+
 for (outcome in outcomes) {
     formula <- stats::as.formula(paste0(outcome, " ~ ", regressor_formula,
         " | county_fips + state_group^year"))
@@ -187,7 +286,14 @@ for (outcome in outcomes) {
     names(table)[seq_len(min(4L, ncol(table)))] <- c("estimate", "std_error",
         "statistic", "p_value")[seq_len(min(4L, ncol(table)))]
     table$outcome <- outcome
+    table$effect_type <- ifelse(grepl("_post_difference_", table$term),
+        "post_minus_pre_difference", "pre_response")
+    table$coefficient_of_interest <- table$effect_type ==
+        "post_minus_pre_difference"
+    table$ci_lower <- table$estimate - stats::qnorm(0.975) * table$std_error
+    table$ci_upper <- table$estimate + stats::qnorm(0.975) * table$std_error
     coefficient_parts[[outcome]] <- data.table::as.data.table(table)
+    effect_parts[[outcome]] <- build_effect_table(model, outcome)
     fit_parts[[outcome]] <- data.table::data.table(
         outcome = outcome,
         observations = stats::nobs(model),
@@ -202,6 +308,9 @@ data.table::setcolorder(coefficients,
     c("outcome", "term", setdiff(names(coefficients), c("outcome", "term"))))
 write_csv_with_message(coefficients,
     file.path(output_dir, "event_study_coefficients.csv"))
+effects <- data.table::rbindlist(effect_parts, fill = TRUE)
+write_csv_with_message(effects,
+    file.path(output_dir, "event_study_effects.csv"))
 write_csv_with_message(data.table::rbindlist(fit_parts),
     file.path(output_dir, "event_study_fit_statistics.csv"))
 
@@ -210,9 +319,10 @@ message("\nAnnual flood event-study summary")
 message("Sample: ", nrow(panel_year), " county-year observations across ",
     data.table::uniqueN(panel_year$county_fips), " counties and ",
     data.table::uniqueN(panel_year$state_group), " state-like groups")
-message("Flood event years: direct pre-RR2.0 = ", nrow(direct_pre),
+message("Flood event years: direct pre-RR2.0 = ",
+    nrow(direct_events) - nrow(direct_post),
     "; direct post-RR2.0 = ", nrow(direct_post),
-    "; neighbor pre-RR2.0 = ", nrow(neighbor_pre),
+    "; neighbor pre-RR2.0 = ", nrow(neighbor_events) - nrow(neighbor_post),
     "; neighbor post-RR2.0 = ", nrow(neighbor_post))
 for (outcome in outcomes) {
     fit <- fit_parts[[outcome]]
