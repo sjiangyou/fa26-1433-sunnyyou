@@ -27,11 +27,25 @@ and evaluation will use Python as those stages are added.
 
 The model stage writes these reproducible artifacts to `data/derived/model/`:
 
-- `annual_event_study_panel.csv`: annual Florida county observations used for estimation;
-- `event_study_coefficients.csv`: event-study coefficient estimates and standard errors;
+- `annual_event_study_panel.csv`: annual county observations for all available states and territories used for estimation;
+- `event_study_coefficients.csv`: baseline event-time coefficients and the
+  post-minus-pre interaction coefficients, with the latter marked as the
+  coefficients of interest;
+- `event_study_effects.csv`: pre responses, post responses, and post-minus-pre
+  differences with standard errors and confidence intervals;
 - `event_study_coefficients_translated.csv`: coefficient estimates with implied
   percentage changes calculated as `100 * (exp(estimate) - 1)`;
+- `event_study_effects_translated.csv`: the complete effects table with point
+  estimates and confidence intervals translated to percentage changes;
 - `event_study_fit_statistics.csv`: observation counts and model fit statistics.
+
+The annual model follows Gallagher's adjacent-nonflooded-county treatment
+definition. A county-year is a geographic neighbor event only if at least one
+border-adjacent county floods and the focal county does not flood. The saved
+annual panel retains the raw `adjacent_flood` indicator so this exclusion can
+be audited directly. The estimator constructs a one-row-per-FIPS county lookup
+and stops unless the balanced panel contains exactly one observation per
+county-year.
 
 The raw-data acquisition script uses FEMA's public OpenFEMA endpoints:
 
