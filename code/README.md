@@ -31,9 +31,19 @@ The current setup scripts are:
   direct flood anywhere in the focal county-year. The script builds a one-row-
   per-FIPS county lookup and stops if the balanced panel contains duplicate or
   missing county-years.
+- `estimate_model_no_2021.R`: runs the same annual estimator after constructing
+  all event-time regressors and then removing calendar-year 2021 observations.
+  Flood events occurring in 2021 remain in the event history, so their leads
+  and lags can contribute in retained observation years. Outputs use the
+  `_no_2021.csv` suffix.
 - `translate_coefficients.R`: translates log event-study coefficients into
   implied percentage changes using `100 * (exp(estimate) - 1)`, including the
   confidence intervals in the coefficient and effects tables.
+- `translate_coefficients_no_2021.R`: applies the same translation to the
+  `_no_2021.csv` robustness outputs.
+- `plot_event_study.R`: uses ggplot2 to create Gallagher-style PNG figures for
+  direct-flood responses, nonflooded-neighbor responses, and post-minus-pre
+  response differences. The figures use the primary new-policy-record outcome.
 - `setup_r_environment.R`: creates or restores the project-local `renv`
   environment with the packages required by the data and model scripts.
 
@@ -43,7 +53,15 @@ exist. The model writes its annual regression panel and coefficient tables to
 the complete currently implemented workflow. Use the repository `Makefile`
 instead of invoking these scripts manually when reproducing the project.
 
+Use `make estimate-model-no-2021` for the transition-year robustness model.
+`make translate-coefficients-no-2021` estimates that model if needed and
+creates its translated tables. Both stages are included in `make all`.
+
 After estimation, `make translate-coefficients` writes translated versions of
 `event_study_coefficients.csv` and `event_study_effects.csv`. These files
 preserve the log-scale results and add implied percentage changes for the point
 estimates and confidence intervals.
+
+Run `make plot-figures` to regenerate the event-study PNG files in `output/`
+from the translated effects table. This plotting stage is also part of
+`make all`.

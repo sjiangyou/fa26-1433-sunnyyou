@@ -164,6 +164,12 @@ difference at event time -2 is also significant. This evidence of differential
 pre-event behavior means the neighbor estimates should not yet be interpreted
 as causal effects.
 
+The three reproducible event-study figures visualize these estimates on the
+implied-percentage-change scale. The direct and neighbor figures compare flood
+cohorts through 2021 with cohorts after 2021; the difference figure shows the
+post-minus-pre interactions that are the coefficients of interest. The plotted
+year -1 zeros are regression normalizations, not additional estimates.
+
 ## Assumptions and validation
 
 The most important assumptions are:

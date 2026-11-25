@@ -24,6 +24,11 @@ The model stage, run by `make estimate-model` or as the final stage of
   implied percentage changes.
 - `model/event_study_fit_statistics.csv`: observation counts and fit statistics for each outcome.
 
+The no-2021 robustness stage writes the same six artifacts with `_no_2021`
+immediately before `.csv`. Its annual panel excludes observations whose
+calendar year is 2021, but its event regressors are constructed from the full
+panel so floods occurring in 2021 can contribute leads and lags in other years.
+
 The county-neighbor file uses Census TIGER/Line county polygons for all
 available counties. Counties that only meet at a point are excluded. The policy
 file does not contain a persistent household identifier, so `premium_change` is

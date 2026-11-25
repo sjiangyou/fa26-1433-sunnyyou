@@ -14,6 +14,14 @@ script <- sub("^--file=", "", script_argument[1L])
 root <- normalizePath(file.path(dirname(script), ".."))
 
 model_dir <- file.path(root, "data", "derived", "model")
+output_suffix <- getOption("event_study.output_suffix", "")
+if (length(output_suffix) != 1L || is.na(output_suffix) ||
+        !grepl("^(_[A-Za-z0-9]+)*$", output_suffix)) {
+    stop("The event-study output suffix must be empty or use '_label' blocks")
+}
+artifact_path <- function(stem) {
+    file.path(model_dir, paste0(stem, output_suffix, ".csv"))
+}
 translate_file <- function(input_file, output_file) {
     if (!file.exists(input_file)) stop("Missing model output: ", input_file)
 
@@ -35,10 +43,10 @@ translate_file <- function(input_file, output_file) {
 }
 
 translate_file(
-    file.path(model_dir, "event_study_coefficients.csv"),
-    file.path(model_dir, "event_study_coefficients_translated.csv")
+    artifact_path("event_study_coefficients"),
+    artifact_path("event_study_coefficients_translated")
 )
 translate_file(
-    file.path(model_dir, "event_study_effects.csv"),
-    file.path(model_dir, "event_study_effects_translated.csv")
+    artifact_path("event_study_effects"),
+    artifact_path("event_study_effects_translated")
 )

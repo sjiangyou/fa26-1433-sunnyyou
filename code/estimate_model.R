@@ -40,6 +40,21 @@ output_dir <- file.path(derived, "model")
 if (!file.exists(input_file)) stop("Missing analysis panel: ", input_file)
 dir.create(output_dir, recursive = TRUE, showWarnings = FALSE)
 
+# Thin wrapper scripts can set these options to run a robustness specification
+# without duplicating the model implementation. Event regressors are always
+# constructed before observation years are excluded, so floods in an excluded
+# observation year can still contribute leads and lags in retained years.
+output_suffix <- getOption("event_study.output_suffix", "")
+excluded_observation_years <- as.integer(getOption(
+    "event_study.excluded_observation_years", integer()))
+if (length(output_suffix) != 1L || is.na(output_suffix) ||
+        !grepl("^(_[A-Za-z0-9]+)*$", output_suffix)) {
+    stop("The event-study output suffix must be empty or use '_label' blocks")
+}
+artifact_path <- function(stem) {
+    file.path(output_dir, paste0(stem, output_suffix, ".csv"))
+}
+
 start_year <- 2015L
 end_year <- 2024L
 transition_year <- 2021L
@@ -184,10 +199,23 @@ panel_year[, log_new_policy_records := data.table::fifelse(new_policy_records > 
 panel_year[, log_policy_records := data.table::fifelse(policy_records > 0,
     log(policy_records), NA_real_)]
 
+# Drop requested observation years only after constructing events from the
+# complete annual panel. This distinction is important for the no-2021
+# robustness check: a 2021 flood can still affect retained lead/lag years.
+estimation_panel <- panel_year[
+    !year %in% excluded_observation_years]
+if (nrow(estimation_panel) == 0L) {
+    stop("Excluding observation years left no observations for estimation")
+}
+if (length(excluded_observation_years) > 0L &&
+        estimation_panel[year %in% excluded_observation_years, .N] > 0L) {
+    stop("Excluded observation years remain in the estimation panel")
+}
+
 # Save the exact annual regression data for reproducibility and diagnostics.
-data.table::setorder(panel_year, county_fips, year)
-write_csv_with_message(panel_year,
-    file.path(output_dir, "annual_event_study_panel.csv"))
+data.table::setorder(estimation_panel, county_fips, year)
+write_csv_with_message(estimation_panel,
+    artifact_path("annual_event_study_panel"))
 
 regressor_names <- unlist(lapply(c("direct", "neighbor"), function(prefix) {
     c(paste0(prefix, "_", vapply(event_times, event_label, character(1))),
@@ -278,7 +306,7 @@ build_effect_table <- function(model, outcome) {
 for (outcome in outcomes) {
     formula <- stats::as.formula(paste0(outcome, " ~ ", regressor_formula,
         " | county_fips + state_group^year"))
-    model <- fixest::feols(formula, data = panel_year,
+    model <- fixest::feols(formula, data = estimation_panel,
         cluster = ~county_fips, warn = FALSE)
     table <- as.data.frame(fixest::coeftable(model))
     table$term <- rownames(table)
@@ -307,18 +335,24 @@ coefficients <- data.table::rbindlist(coefficient_parts, fill = TRUE)
 data.table::setcolorder(coefficients,
     c("outcome", "term", setdiff(names(coefficients), c("outcome", "term"))))
 write_csv_with_message(coefficients,
-    file.path(output_dir, "event_study_coefficients.csv"))
+    artifact_path("event_study_coefficients"))
 effects <- data.table::rbindlist(effect_parts, fill = TRUE)
 write_csv_with_message(effects,
-    file.path(output_dir, "event_study_effects.csv"))
+    artifact_path("event_study_effects"))
 write_csv_with_message(data.table::rbindlist(fit_parts),
-    file.path(output_dir, "event_study_fit_statistics.csv"))
+    artifact_path("event_study_fit_statistics"))
 
 # Print a compact result summary for interactive runs and reproducibility logs.
 message("\nAnnual flood event-study summary")
-message("Sample: ", nrow(panel_year), " county-year observations across ",
-    data.table::uniqueN(panel_year$county_fips), " counties and ",
-    data.table::uniqueN(panel_year$state_group), " state-like groups")
+message("Sample: ", nrow(estimation_panel),
+    " county-year observations across ",
+    data.table::uniqueN(estimation_panel$county_fips), " counties and ",
+    data.table::uniqueN(estimation_panel$state_group), " state-like groups")
+if (length(excluded_observation_years) > 0L) {
+    message("Excluded observation years: ",
+        paste(excluded_observation_years, collapse = ", "),
+        "; flood events in those years remain in lead/lag construction")
+}
 message("Flood event years: direct pre-RR2.0 = ",
     nrow(direct_events) - nrow(direct_post),
     "; direct post-RR2.0 = ", nrow(direct_post),
